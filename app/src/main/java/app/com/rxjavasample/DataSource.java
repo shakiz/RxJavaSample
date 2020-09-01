@@ -3,6 +3,8 @@ package app.com.rxjavasample;
 import java.util.ArrayList;
 import java.util.List;
 
+import app.com.rxjavasample.models.Task;
+
 public class DataSource {
 
     public static List<Task> createTasksList(){

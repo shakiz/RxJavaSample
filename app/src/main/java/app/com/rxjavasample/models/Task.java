@@ -1,4 +1,4 @@
-package app.com.rxjavasample;
+package app.com.rxjavasample.models;
 
 public class Task {
     private String description;

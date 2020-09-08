@@ -14,8 +14,11 @@ import app.com.rxjavasample.models.Comment;
 import app.com.rxjavasample.models.Post;
 import app.com.rxjavasample.models.Task;
 import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.ObservableSource;
 import io.reactivex.Observer;
+import io.reactivex.Scheduler;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
@@ -26,6 +29,10 @@ import io.reactivex.schedulers.Schedulers;
 public class MainActivity extends AppCompatActivity {
 
     private static String TAG = "MainActivity";
+    private static String TAG_CREATE_OPERATOR = "CREATE_OPERATOR";
+    private static String TAG_JUST_OPERATOR = "JUST_OPERATOR";
+    private static String TAG_FLATMAP_OPERATOR = "FLATMAP_OPERATOR";
+    private static String TAG_RANGE_OPERATOR = "RANGE_OPERATOR";
     private RecyclerView recyclerView;
 
     //Disposeables helps to destro or clear the observers that no longer needed after finishing a task
@@ -106,37 +113,161 @@ public class MainActivity extends AppCompatActivity {
         getPostsObservable()
                 .subscribeOn(Schedulers.io())
                 .flatMap(new Function<Post, ObservableSource<Post>>() {
+                    @Override
+                    public ObservableSource<Post> apply(Post post) throws Exception {
+                        //This return will give the updated posts along with the comments
+                        return getCommentsObservable(post);
+                    }
+                })
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Post>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        disposable.add(d);
+                    }
+
+                    @Override
+                    public void onNext(Post post) {
+                        //update post
+                        Log.i(TAG_FLATMAP_OPERATOR, "onNext: "+post.getId());
+                        updatePost(post);
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        Log.e(TAG_FLATMAP_OPERATOR, "onError: ", e.fillInStackTrace());
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        Log.i(TAG_FLATMAP_OPERATOR, "onComplete: Completed");
+                    }
+                });
+        //endregion
+
+        //region create operator example
+        Observable<Task> createOperatorObservable = Observable.create(new ObservableOnSubscribe<Task>() {
             @Override
-            public ObservableSource<Post> apply(Post post) throws Exception {
-                return getCommentsObservable(post);
+            public void subscribe(ObservableEmitter<Task> emitter) throws Exception {
+                for (int start = 0; start < DataSource.createTasksList().size(); start++) {
+                    if (!emitter.isDisposed()){
+                        emitter.onNext(DataSource.createTasksList().get(start));
+                    }
+                }
+                if (!emitter.isDisposed()){
+                    emitter.onComplete();
+                }
             }
         })
-        .observeOn(AndroidSchedulers.mainThread())
-        .subscribe(new Observer<Post>() {
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread());
+
+        createOperatorObservable.subscribe(new Observer<Task>() {
             @Override
             public void onSubscribe(Disposable d) {
                 disposable.add(d);
             }
 
             @Override
-            public void onNext(Post post) {
-                adapter.updatePost(post);
+            public void onNext(Task task) {
+                Log.i(TAG_CREATE_OPERATOR, "onNext: "+task.getDescription());
             }
 
             @Override
             public void onError(Throwable e) {
-                Log.e(TAG, "onError: ", e.fillInStackTrace());
+
             }
 
             @Override
             public void onComplete() {
-                Log.i(TAG, "onComplete: Completed");
+
             }
         });
         //endregion
+
+        //region just operator
+        //Just operator creates just a single observable or small list of observable
+        Observable
+                .just(DataSource.createTasksList().get(0))
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Task>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        disposable.add(d);
+                    }
+
+                    @Override
+                    public void onNext(Task task) {
+                        Log.i(TAG_JUST_OPERATOR, "onNext: "+task.getDescription());
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+        //endregion
+
+        //region range operator
+        //1.It is useful when we try to do some heavy task into a loop , like looping through 1-10 range and performing some operations.
+        //2.range() operator can not work alone, it work with some other helping hand like map() or takeWhile() operator
+        //In this example,I am creating a work where the range should be 0-8 and the map() operator only work when task is completed.
+        Observable<Task> rangerObservable = Observable
+                .range(0,9)
+                .subscribeOn(Schedulers.io())
+                .map(new Function<Integer, Task>() {
+                    @Override
+                    public Task apply(Integer integer) throws Exception {
+                        Log.i(TAG_RANGE_OPERATOR, "appliedThread: "+Thread.currentThread().getName());
+                        return new Task("This is a demo task from range operator",true,2);
+                    }
+                })
+                .takeWhile(new Predicate<Task>() {
+                    @Override
+                    public boolean test(Task task) throws Exception {
+                        return task.isComplete();
+                    }
+                })
+                .observeOn(AndroidSchedulers.mainThread());
+        rangerObservable.subscribe(new Observer<Task>() {
+            @Override
+            public void onSubscribe(Disposable d) {
+                disposable.add(d);
+            }
+
+            @Override
+            public void onNext(Task task) {
+                Log.i(TAG_RANGE_OPERATOR, "onNext: "+task.getDescription());
+            }
+
+            @Override
+            public void onError(Throwable e) {
+
+            }
+
+            @Override
+            public void onComplete() {
+
+            }
+        });
+        //endregion
+
     }
 
+    //region update post into adapter
+    private void updatePost(Post post){
+        adapter.updatePost(post);
+    }
+    //endregion
+
     //region get posts observable
+    //This will execute the retrofit query and avail the posts from server
     private Observable<Post> getPostsObservable(){
         return ApiService.getRequestApi()
                 .getPosts()
@@ -146,6 +277,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public ObservableSource<Post> apply(List<Post> posts) throws Exception {
                         adapter.setPosts(posts);
+                        //return the observable by converting the list of posts into observable by using fromIterable operator
                         return Observable.fromIterable(posts)
                                 .subscribeOn(Schedulers.io())
                                 .observeOn(AndroidSchedulers.mainThread());
@@ -154,20 +286,21 @@ public class MainActivity extends AppCompatActivity {
     }
     //endregion
 
-    //region get comments observable
+    //region get comments observable by using map operator
     private Observable<Post> getCommentsObservable(final Post post){
         return ApiService.getRequestApi()
                 .getComments(post.getId())
                 .map(new Function<List<Comment>, Post>() {
                     @Override
                     public Post apply(List<Comment> comments) throws Exception {
-                        int delay = (new Random()).nextInt(4)+1;
+                        int delay = (new Random()).nextInt(5)+1;
                         Thread.sleep(delay);
-                        Log.d(TAG, "Thread : "+Thread.currentThread().getName()+" Sleeping by "+delay+" ms");
+                        Log.i(TAG, "Thread : "+Thread.currentThread().getName()+" Sleeping by "+delay+" ms");
                         post.setComments(comments);
                         return post;
                     }
-                });
+                })
+                .subscribeOn(Schedulers.io());
     }
     //endregion
 

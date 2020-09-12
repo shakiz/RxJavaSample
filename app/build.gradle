@@ -20,6 +20,7 @@ android {
 
 dependencies {
     def retrofitVersion = "2.5.0"
+    def rxbinding_version = "3.0.0-alpha2"
 
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation 'androidx.appcompat:appcompat:1.2.0'
@@ -39,6 +40,9 @@ dependencies {
     implementation "com.squareup.retrofit2:converter-gson:$retrofitVersion"
     // RxJava Call Adapter
     implementation "com.squareup.retrofit2:adapter-rxjava2:2.5.0"
+
+    // Rx Binding Library
+    implementation "com.jakewharton.rxbinding3:rxbinding:$rxbinding_version"
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'androidx.test:runner:1.1.1'

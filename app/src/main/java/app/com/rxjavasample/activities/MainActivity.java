@@ -5,6 +5,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.os.Bundle;
 import android.util.Log;
+import com.jakewharton.rxbinding3.view.RxView;
 import java.util.List;
 import java.util.Random;
 import app.com.rxjavasample.DataSource;
@@ -18,13 +19,13 @@ import io.reactivex.ObservableEmitter;
 import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.ObservableSource;
 import io.reactivex.Observer;
-import io.reactivex.Scheduler;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Function;
 import io.reactivex.functions.Predicate;
 import io.reactivex.schedulers.Schedulers;
+import kotlin.Unit;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -33,9 +34,10 @@ public class MainActivity extends AppCompatActivity {
     private static String TAG_JUST_OPERATOR = "JUST_OPERATOR";
     private static String TAG_FLATMAP_OPERATOR = "FLATMAP_OPERATOR";
     private static String TAG_RANGE_OPERATOR = "RANGE_OPERATOR";
+    private static String TAG_BUFFER_OPERATOR = "BUFFER_OPERATOR";
     private RecyclerView recyclerView;
 
-    //Disposeables helps to destro or clear the observers that no longer needed after finishing a task
+    //Disposeables helps to destroy or clear the observers that no longer needed after finishing a task
     private CompositeDisposable disposable = new CompositeDisposable();
 
     private PostRecyclerAdapter adapter;
@@ -258,6 +260,42 @@ public class MainActivity extends AppCompatActivity {
         });
         //endregion
 
+        //region buffer operator example
+        //1.It simply means buffering emitting objects
+        //2.It collects a group of objects and emits them within a time intervals
+        //3.Following is a example that detects button click in each 4 seconds later.Its like tracking UI interactions
+        RxView.clicks(findViewById(R.id.demoButton))
+                .map(new Function<Unit, Object>() {
+                    @Override
+                    public Object apply(Unit unit) throws Exception {
+                        return 1;
+                    }
+                })
+                .buffer(4)//Here we applied 4 seconds timing.Which will detect number of clicks in this button in 4 secods later.
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<List<Object>>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        disposable.add(d);
+                    }
+
+                    @Override
+                    public void onNext(List<Object> objects) {
+                        Log.i(TAG_BUFFER_OPERATOR, "onNext: Total clicks on button "+objects.size()+" times in 4 seconds.");
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+        //endregion
+
     }
 
     //region update post into adapter
@@ -315,9 +353,11 @@ public class MainActivity extends AppCompatActivity {
     }
     //endregion
 
+    //region activity onDestroy() method
     @Override
     protected void onDestroy() {
         super.onDestroy();
         disposable.clear();
     }
+    //endregion
 }

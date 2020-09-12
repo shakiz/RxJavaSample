@@ -1,6 +1,7 @@
 package app.com.rxjavasample.activities;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SearchView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.os.Bundle;
@@ -8,6 +9,7 @@ import android.util.Log;
 import com.jakewharton.rxbinding3.view.RxView;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import app.com.rxjavasample.DataSource;
 import app.com.rxjavasample.PostRecyclerAdapter;
 import app.com.rxjavasample.R;
@@ -35,11 +37,14 @@ public class MainActivity extends AppCompatActivity {
     private static String TAG_FLATMAP_OPERATOR = "FLATMAP_OPERATOR";
     private static String TAG_RANGE_OPERATOR = "RANGE_OPERATOR";
     private static String TAG_BUFFER_OPERATOR = "BUFFER_OPERATOR";
+    private static String TAG_DEBOUNCE_OPERATOR = "DEBOUNCE_OPERATOR";
     private RecyclerView recyclerView;
+    private SearchView searchView;
 
     //Disposeables helps to destroy or clear the observers that no longer needed after finishing a task
     private CompositeDisposable disposable = new CompositeDisposable();
 
+    private long timeSinceLastRequest;
     private PostRecyclerAdapter adapter;
 
     @Override
@@ -49,10 +54,16 @@ public class MainActivity extends AppCompatActivity {
 
         //region init ui components
         initUI();
+        bindUiWithComponents();
         initRecyclerView();
         //endregion
+    }
 
-        //Summary
+    //region perform all UI operations
+    private void bindUiWithComponents(){
+        timeSinceLastRequest = System.currentTimeMillis();
+
+        //region fromIterable
         //Create an Observable
         //Apply an operator to the Observable
         //Designate what thread to do the work on and what thread to emit the results to
@@ -74,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 })
                 .observeOn(AndroidSchedulers.mainThread()); //designate observer thread (main thread)
+        //endregion
 
         //region Now that I have an object to observe, I can subscribe to it with an observer.
         taskObservable.subscribe(new Observer<Task>() {
@@ -102,14 +114,14 @@ public class MainActivity extends AppCompatActivity {
 
         //region flatMap() example
         /*
-        * Suppose we have to collect data from two different sources. For example,
-        * Product title and will come from an end point and price will come from another end point.
-        * So we have to make teo different queries in two different source
-        * And that is the case when flatMap() helps the most. Flatmap is useful when we have to query into two different source for one purpose.
-        * Underneath a example about this fact,
-        * 1. Hit 1 : https://jsonplaceholder.typicode.com/posts/
-        * 2. Hit 2 : https://jsonplaceholder.typicode.com/posts/id/comments
-        */
+         * Suppose we have to collect data from two different sources. For example,
+         * Product title and will come from an end point and price will come from another end point.
+         * So we have to make teo different queries in two different source
+         * And that is the case when flatMap() helps the most. Flatmap is useful when we have to query into two different source for one purpose.
+         * Underneath a example about this fact,
+         * 1. Hit 1 : https://jsonplaceholder.typicode.com/posts/
+         * 2. Hit 2 : https://jsonplaceholder.typicode.com/posts/id/comments
+         */
         //First get the posts observable
         //Then get the comments observable and update the posts with the comments
         getPostsObservable()
@@ -296,7 +308,63 @@ public class MainActivity extends AppCompatActivity {
                 });
         //endregion
 
+        //region debounce operator
+        //1.Debounce add a delay in request.
+        //2.Like instagram search , where a delay was made in each request which ensures less server request.
+        Observable<String> debounceStringObservable = Observable.create(new ObservableOnSubscribe<String>() {
+            @Override
+            public void subscribe(final ObservableEmitter<String> emitter) throws Exception {
+                searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+                    @Override
+                    public boolean onQueryTextSubmit(String query) {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean onQueryTextChange(String newText) {
+                        if (!emitter.isDisposed()){
+                            emitter.onNext(newText);
+                        }
+                        return false;
+                    }
+                });
+            }
+        })
+                .debounce(500, TimeUnit.MILLISECONDS) //Apply delay of 0.5 seconds
+                .subscribeOn(Schedulers.io());
+        debounceStringObservable.subscribe(new Observer<String>() {
+            @Override
+            public void onSubscribe(Disposable d) {
+                disposable.add(d);
+            }
+
+            @Override
+            public void onNext(String searchText) {
+                Log.i(TAG_DEBOUNCE_OPERATOR, "onNext: "+String.valueOf(System.currentTimeMillis() - timeSinceLastRequest));
+                Log.i(TAG_DEBOUNCE_OPERATOR, "timeSinceLastRequest: "+timeSinceLastRequest);
+                Log.i(TAG_DEBOUNCE_OPERATOR, "onNext: Query is :  "+searchText);
+                search(searchText);
+            }
+
+            @Override
+            public void onError(Throwable e) {
+
+            }
+
+            @Override
+            public void onComplete() {
+
+            }
+        });
+        //endregion
     }
+    //endregion
+
+    //region executes request searching in server
+    private void search(String query){
+
+    }
+    //endregion
 
     //region update post into adapter
     private void updatePost(Post post){
@@ -345,6 +413,7 @@ public class MainActivity extends AppCompatActivity {
     //region init UI components
     private void initUI(){
         recyclerView = findViewById(R.id.mRecyclerView);
+        searchView = findViewById(R.id.searchView);
     }
     private void initRecyclerView(){
         adapter = new PostRecyclerAdapter();

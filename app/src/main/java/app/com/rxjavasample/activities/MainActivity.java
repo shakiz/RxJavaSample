@@ -6,6 +6,8 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.Button;
+import android.widget.Toast;
 import com.jakewharton.rxbinding3.view.RxView;
 import java.util.List;
 import java.util.Random;
@@ -38,14 +40,16 @@ public class MainActivity extends AppCompatActivity {
     private static String TAG_RANGE_OPERATOR = "RANGE_OPERATOR";
     private static String TAG_BUFFER_OPERATOR = "BUFFER_OPERATOR";
     private static String TAG_DEBOUNCE_OPERATOR = "DEBOUNCE_OPERATOR";
+    private static String TAG_THROTTLE_OPERATOR = "THROTTLE_OPERATOR";
     private RecyclerView recyclerView;
     private SearchView searchView;
 
     //Disposeables helps to destroy or clear the observers that no longer needed after finishing a task
     private CompositeDisposable disposable = new CompositeDisposable();
 
-    private long timeSinceLastRequest;
+    private long timeSinceLastRequest, timeSinceLastPress;
     private PostRecyclerAdapter adapter;
+    private Button throttleButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,6 +66,7 @@ public class MainActivity extends AppCompatActivity {
     //region perform all UI operations
     private void bindUiWithComponents(){
         timeSinceLastRequest = System.currentTimeMillis();
+        timeSinceLastPress = System.currentTimeMillis();
 
         //region fromIterable
         //Create an Observable
@@ -276,7 +281,7 @@ public class MainActivity extends AppCompatActivity {
         //1.It simply means buffering emitting objects
         //2.It collects a group of objects and emits them within a time intervals
         //3.Following is a example that detects button click in each 4 seconds later.Its like tracking UI interactions
-        RxView.clicks(findViewById(R.id.demoButton))
+        RxView.clicks(findViewById(R.id.bufferButton))
                 .map(new Function<Unit, Object>() {
                     @Override
                     public Object apply(Unit unit) throws Exception {
@@ -357,6 +362,37 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         //endregion
+
+        //region throttle operator
+        //1.Its useful when we dont to press a button ot ui interactions too much frequent by any user.
+        //2.Suppose there is a button to save things.But user clicks multiple time byt the save will done by one time.
+        RxView.clicks(throttleButton)
+                .throttleFirst(4000,TimeUnit.MILLISECONDS)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Unit>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+
+                    }
+
+                    @Override
+                    public void onNext(Unit unit) {
+                        Toast.makeText(MainActivity.this, "You clicked the button", Toast.LENGTH_SHORT).show();
+                        Log.i(TAG_THROTTLE_OPERATOR, "onNext: "+String.valueOf(System.currentTimeMillis() - timeSinceLastRequest));
+                        timeSinceLastPress = System.currentTimeMillis();
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+        //endregion
     }
     //endregion
 
@@ -374,6 +410,7 @@ public class MainActivity extends AppCompatActivity {
 
     //region get posts observable
     //This will execute the retrofit query and avail the posts from server
+    //FlatMap works without order but if we want to fetch something in order then we can use ConCatMap operator in replace of flatMap.
     private Observable<Post> getPostsObservable(){
         return ApiService.getRequestApi()
                 .getPosts()
@@ -414,6 +451,7 @@ public class MainActivity extends AppCompatActivity {
     private void initUI(){
         recyclerView = findViewById(R.id.mRecyclerView);
         searchView = findViewById(R.id.searchView);
+        throttleButton = findViewById(R.id.throttleButton);
     }
     private void initRecyclerView(){
         adapter = new PostRecyclerAdapter();

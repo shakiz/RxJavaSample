@@ -8,10 +8,22 @@
     tools:context=".activities.MainActivity">
 
     <Button
-        android:id="@+id/demoButton"
+        android:id="@+id/bufferButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Button"
+        android:text="Buffer Button"
+        android:textAllCaps="true"
+        style="@style/Widget.MaterialComponents.Button"
+        android:textSize="18sp"
+        android:layout_marginTop="8dp"
+        android:layout_marginLeft="8dp"
+        android:layout_marginRight="8dp"/>
+
+    <Button
+        android:id="@+id/throttleButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Throttle Button"
         android:textAllCaps="true"
         style="@style/Widget.MaterialComponents.Button"
         android:textSize="18sp"
